@@ -44,12 +44,13 @@ OUT = Path("corpus")
 MIN_TEXT_CHARS = 400  # below this, the page is probably rendered client-side
 
 # Elements that are never content
-STRIP_TAGS = ["script", "style", "noscript", "svg", "iframe", "form", "button"]
+STRIP_TAGS = ["script", "style", "noscript", "svg", "iframe"]
 STRIP_SELECTORS = [
     "header", "footer", "nav", "aside",
     "[role=navigation]", "[role=banner]", "[role=contentinfo]",
     ".breadcrumb", ".breadcrumbs", ".masthead", ".sgds-masthead",
     ".skip-link", ".cookie", ".share", ".social",
+    "[class*=Sidebar]", "[class*=Breadcrumb]", "[class*=placeholder]",  # CMS side menus, trails, loading skeletons
 ]
 # Tried in order to find the main content block
 MAIN_SELECTORS = ["main", "[role=main]", "article", "#main-content", "#content", ".content"]
@@ -98,6 +99,20 @@ def extract(html: str) -> tuple[str, str]:
     for tag in soup(STRIP_TAGS):
         tag.decompose()
 
+    # Component libraries often build headings as <div role="heading" aria-level="3">
+    for el in soup.select("[role=heading]"):
+        level = el.get("aria-level", "2")
+        el.name = f"h{level}" if level in {"1", "2", "3", "4", "5", "6"} else "h2"
+        el.attrs = {}
+
+    # Forms and buttons: drop bare controls, but keep their text when substantial. CMS pages can wrap
+    # the whole page in a <form>, and accordion section headers are <button>s holding real text.
+    for el in soup.find_all(["form", "button"]):
+        if len(el.get_text(strip=True)) < 25:
+            el.decompose()
+        else:
+            el.unwrap()
+
     main = None
     for sel in MAIN_SELECTORS:
         main = soup.select_one(sel)
@@ -114,6 +129,17 @@ def extract(html: str) -> tuple[str, str]:
     md = re.sub(r"\n{3,}", "\n\n", md)              # collapse blank runs
     md = re.sub(r"[ \t]+\n", "\n", md).strip() + "\n"  # trailing spaces
     return title, md
+
+
+def empty_collapsed_sections(html: str) -> int:
+    """Count accordion sections whose panel has no text: the page was saved with them closed."""
+    soup = BeautifulSoup(html, "html.parser")
+    n = 0
+    for btn in soup.select("button[aria-controls][aria-expanded]"):
+        panel = soup.find(id=btn["aria-controls"])
+        if panel is not None and "accordion" in " ".join(btn.get("class", [])) and not panel.get_text(strip=True):
+            n += 1
+    return n
 
 
 def content_hash(md: str) -> str:
@@ -253,7 +279,13 @@ def ingest_local(seeds: list[dict], folder: Path, all_ids: set[str]) -> int:
                 "changed": prev.get(seed["id"]) != h, "duplicate_of": seen_hashes.get(h),
             }
             seen_hashes.setdefault(h, seed["id"])
-            if len(md) < MIN_TEXT_CHARS:
+            closed = empty_collapsed_sections(text) if path.suffix.lower() in (".html", ".htm") else 0
+            if closed:
+                rec["status"] = "collapsed_sections"
+                problems += 1
+                print(f"! {seed['id']}: {closed} section(s) were closed when saved, so their text is missing. "
+                      f"Open every section (click each heading), then save again with 'Webpage, Complete'.")
+            elif len(md) < MIN_TEXT_CHARS:
                 rec["status"] = "thin_content"
                 problems += 1
                 print(f"! {seed['id']}: only {len(md)} chars. Re-save with 'Webpage, Complete' or paste the text into {seed['id']}.md")

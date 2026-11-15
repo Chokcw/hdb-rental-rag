@@ -29,10 +29,10 @@ python fetch_datasets.py                                  # rental datasets -> S
 
 hdb.gov.sg returns 403 to non-browser clients, so save those pages by hand instead:
 
-1. Open each tier 1 canonical HDB page in your browser and save it into `manual/` as `<seed id>.html`
-   (e.g. `manual/hdb-tenant-eligibility.html`). Use **Webpage, Complete**, not "HTML only":
-   HDB's pages may build their content with JavaScript, and "Complete" saves the rendered page.
-   Alternatively, copy the page text into `<seed id>.md`.
+1. Open each tier 1 canonical HDB page in your browser and **click every expandable section open**
+   (HDB only loads a section's text when it is opened). Then save the page into `manual/` as `<seed id>.html`
+   (e.g. `manual/hdb-tenant-eligibility.html`) using **Webpage, Complete**, not "HTML only".
+   Alternatively, with all sections open, copy the page text into `<seed id>.md`.
 2. Run `python crawl.py --local manual`.
 
 It reports filenames that match no seed, pages with too little text, and tier 1 pages you haven't saved yet.
