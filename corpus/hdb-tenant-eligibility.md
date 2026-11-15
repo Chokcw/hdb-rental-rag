@@ -8,7 +8,7 @@ audience: tenant
 canonical: true
 source: manual
 hash: ab7dc0bdc53c801d
-fetched_at: '2026-11-15T00:52:34+00:00'
+fetched_at: '2026-11-15T01:42:28+00:00'
 ---
 
 # Eligibility for Renting a Flat or a Bedroom from Open Market
