@@ -269,7 +269,9 @@ def ingest_local(seeds: list[dict], folder: Path, all_ids: set[str]) -> int:
     missing: list[str] = []
     with (OUT / "manifest.jsonl").open("a") as manifest:
         for seed in seeds:
-            path = next((p for ext in LOCAL_EXTS if (p := folder / f"{seed['id']}{ext}").exists()), None)
+            # if a page was saved more than once (e.g. old .html, new .md), use the most recently saved file
+            path = max((p for ext in LOCAL_EXTS if (p := folder / f"{seed['id']}{ext}").exists()),
+                       key=lambda p: p.stat().st_mtime, default=None)
             if path is None:
                 if seed["canonical"] and seed["tier"] == 1:
                     missing.append(seed["id"])

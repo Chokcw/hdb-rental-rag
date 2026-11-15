@@ -36,6 +36,21 @@ hdb.gov.sg returns 403 to non-browser clients, so save those pages by hand inste
    Alternatively, with all sections open, copy the page text into `<seed id>.md`.
 2. Run `python crawl.py --local manual`.
 
+### Easier: the in-browser helper (`tools/save_hdb_page.js`)
+
+HDB's expandable sections close each other, so saving a page by hand misses text. The helper opens
+each section in turn and downloads the page as `<seed id>.md`:
+
+1. Open the HDB page in your browser.
+2. Open the browser console (Chrome: Cmd+Option+J. Safari: turn on Settings > Advanced > "Show features
+   for web developers", then Option+Cmd+C).
+3. Paste the contents of `tools/save_hdb_page.js` and press Enter. (Chrome asks you to type `allow pasting`
+   first.) Wait a few seconds; a file downloads and the console prints how many sections were captured.
+4. Move the file: `mv ~/Downloads/hdb-*.md manual/`, then `python crawl.py --local manual`.
+
+It sends no requests of its own; it only clicks the sections you could click yourself. If the same page
+exists in `manual/` as both `.html` and `.md`, the most recently saved file wins.
+
 It reports filenames that match no seed, pages with too little text, and tier 1 pages you haven't saved yet.
 Output records `source: manual` and the file's saved time as `fetched_at`.
 
