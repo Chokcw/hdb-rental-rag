@@ -1,0 +1,190 @@
+# HDB rental RAG — crawl seeds
+# Source discovery: 14 Nov 2026. See the "HDB Rental RAG — Source Map" doc for rationale.
+#
+# Fields
+#   id        stable slug, used as the output filename
+#   url       page to fetch
+#   tier      1 = HDB core, 2 = other gov, 4 = change signal (tier 3 datasets live under `datasets:`)
+#   audience  owner | tenant | both
+#   canonical false = known duplicate tree; crawled for diffing, excluded from the index
+#   refresh   weekly | monthly | quarterly
+
+defaults:
+  refresh: weekly
+  canonical: true
+
+pages:
+  # ---------- Tier 1: HDB, owner side (newest tree) ----------
+  - id: hdb-owner-landing
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms
+    tier: 1
+    audience: owner
+  - id: hdb-owner-flat-eligibility
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-a-flat/eligibility
+    tier: 1
+    audience: owner
+  - id: hdb-owner-flat-application
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-a-flat/application-process
+    tier: 1
+    audience: owner
+  - id: hdb-owner-flat-regulations
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-a-flat/regulations
+    tier: 1
+    audience: owner
+  - id: hdb-owner-flat-rental-statistics
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-a-flat/rental-statistics
+    tier: 1
+    audience: both
+  - id: hdb-owner-bedroom-eligibility
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-bedrooms/eligibility
+    tier: 1
+    audience: owner
+  - id: hdb-owner-bedroom-application
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-bedrooms/application-process
+    tier: 1
+    audience: owner
+  - id: hdb-owner-bedroom-regulations
+    url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-bedrooms/regulations
+    tier: 1
+    audience: owner
+  - id: hdb-owner-bedroom-terms
+    url: https://www.hdb.gov.sg/cs/infoweb/apply-manage-and-renew-rental-of-bedroom/terms-and-conditions
+    tier: 1
+    audience: owner
+    refresh: monthly
+  - id: hdb-conditions-after-buying
+    url: https://www.hdb.gov.sg/residential/buying-a-flat/conditions-after-buying
+    tier: 1
+    audience: owner
+    refresh: monthly
+
+  # ---------- Tier 1: HDB, tenant side (newest tree) ----------
+  - id: hdb-tenant-landing
+    url: https://www.hdb.gov.sg/renting-a-flat/renting-from-open-market
+    tier: 1
+    audience: tenant
+  - id: hdb-tenant-eligibility
+    url: https://www.hdb.gov.sg/renting-a-flat/renting-from-open-market/eligibility
+    tier: 1
+    audience: tenant
+  - id: hdb-tenant-tenancy-matters
+    url: https://www.hdb.gov.sg/renting-a-flat/renting-from-open-market/tenancy-matters
+    tier: 1
+    audience: tenant
+  - id: hdb-tenant-regulations
+    url: https://www.hdb.gov.sg/renting-a-flat/renting-from-open-market/regulations
+    tier: 1
+    audience: tenant
+  - id: hdb-tenant-rental-statistics
+    url: https://www.hdb.gov.sg/renting-a-flat/renting-from-open-market/rental-statistics
+    tier: 1
+    audience: tenant
+    canonical: false   # probably duplicates hdb-owner-flat-rental-statistics; confirm on first crawl
+
+  # ---------- Tier 1: known duplicate trees (diff only, not indexed) ----------
+  - id: dup-residential-tenant-eligibility
+    url: https://www.hdb.gov.sg/residential/renting-a-flat/renting-from-the-open-market/eligibility
+    tier: 1
+    audience: tenant
+    canonical: false
+  - id: dup-infoweb-tenant-regulations
+    url: https://www.hdb.gov.sg/cs/infoweb/residential/renting-a-flat/renting-from-the-open-market/regulations-for-renting-out-your-flat
+    tier: 1
+    audience: tenant
+    canonical: false
+  - id: dup-residential-tenancy-matters
+    url: https://www.hdb.gov.sg/residential/renting-a-flat/renting-from-the-open-market/matters-relating-to-renting-out-flats
+    tier: 1
+    audience: tenant
+    canonical: false
+  - id: dup-infoweb-bedroom-eligibility
+    url: https://www.hdb.gov.sg/cs/infoweb/residential/renting-out-a-flat-bedroom/renting-out-your-bedroom/eligibility
+    tier: 1
+    audience: owner
+    canonical: false
+  - id: dup-infoweb-bedroom-regulations
+    url: https://www.hdb.gov.sg/cs/infoweb/residential/renting-out-a-flat-bedroom/renting-out-your-bedroom/regulations-for-renting-out-bedrooms
+    tier: 1
+    audience: owner
+    canonical: false
+
+  # ---------- Tier 2: other government sources ----------
+  - id: askgov-hdb-not-authorised-tenant
+    url: https://ask.gov.sg/hdb/questions/cmttq9jnp02934a014hu8fd4i
+    tier: 2
+    audience: tenant
+    refresh: monthly
+  - id: askgov-hdb-landlord-not-registered
+    url: https://ask.gov.sg/hdb/questions/cmttq9jnq02964a01p8tgqa07
+    tier: 2
+    audience: tenant
+    refresh: monthly
+  - id: askgov-hdb-mediation-deposit
+    url: https://ask.gov.sg/hdb/questions/cmttq9jns029c4a01hh72mjtr
+    tier: 2
+    audience: tenant
+    refresh: monthly
+  - id: askgov-hdb-when-authorised
+    url: https://ask.gov.sg/hdb/questions/cmttq9jnv029i4a01vdcmytg4
+    tier: 2
+    audience: tenant
+    refresh: monthly
+  - id: govsg-renting-out-guide
+    url: https://www.gov.sg/article/renting-out-your-hdb-flat
+    tier: 2
+    audience: owner
+    refresh: monthly
+  - id: cea-tenant-hdb
+    url: https://www.cea.gov.sg/consumers/transacting-on-your-own/renting-an-hdb-flat-or-bedroom
+    tier: 2
+    audience: tenant
+    refresh: monthly
+  - id: cea-landlord-hdb
+    url: https://www.cea.gov.sg/consumers/transacting-on-your-own/renting-out-an-hdb-flat-or-bedroom/
+    tier: 2
+    audience: owner
+    refresh: monthly
+  - id: mnd-flat-classification
+    url: https://mnd.gov.sg/our-work/housing-a-nation/bto-classification
+    tier: 2
+    audience: owner
+    refresh: monthly
+  - id: iras-renting-a-property
+    url: https://www.iras.gov.sg/IRASHome/Other-Taxes/Stamp-Duty-for-Property/Working-out-your-Stamp-Duty/Renting-a-Property/
+    tier: 2
+    audience: tenant
+    refresh: monthly
+  - id: iras-renting-out-property
+    url: https://www.iras.gov.sg/IRASHome/Property/Property-owners/Selling-renting-out-carrying-out-works/Renting-out-your-property/
+    tier: 2
+    audience: owner
+    refresh: monthly
+  - id: iras-who-pays-stamp-duty
+    url: https://www.iras.gov.sg/irashome/Other-Taxes/Stamp-Duty-for-Property/Learning-the-basics/Who-Should-Pay-Stamp-Duty/
+    tier: 2
+    audience: both
+    refresh: monthly
+
+  # ---------- Tier 4: change signals (stored, not indexed) ----------
+  - id: hdb-letter-rules-purchase-rental
+    url: https://www.hdb.gov.sg/about-us/news-and-publications/letters-to-the-media/HDB-has-clear-rules-on-the-purchase-and-rental-of-HDB-flats
+    tier: 4
+    audience: both
+    refresh: quarterly
+  - id: mnd-pq-unauthorised-subletting
+    url: https://mnd.gov.sg/newsroom/speeches/view/written-answer-by-ministry-of-national-development-on-monitoring-unauthorised-subletting-by-foreign-nationals-or-hdb-rental-tenants-via-print-or-social-media
+    tier: 4
+    audience: both
+    refresh: quarterly
+
+# ---------- Tier 3: structured data (fetch_datasets.py -> SQLite) ----------
+datasets:
+  - id: renting_out_of_flats
+    dataset_id: d_c9f57187485a850908655db0e8cfe651
+    description: One row per rental approval since Jan 2021 (month, town, block, street, flat type, monthly rent)
+  - id: median_rent_by_town_flat_type
+    dataset_id: d_23000a00c52996c55106084ed0339566
+    description: Quarterly median rent by town and flat type since 2005
+  - id: rental_approvals_by_flat_type
+    dataset_id: d_dad4567fc02596774010f765567780e3
+    description: Quarterly count of rental approvals by flat type
