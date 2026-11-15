@@ -18,11 +18,25 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
 # 1. Check robots.txt by hand first: https://www.hdb.gov.sg/robots.txt
-# 2. Set a contact in USER_AGENT in crawl.py
+# 2. Set a contact for the User-Agent (kept out of the repo):
+export CRAWLER_CONTACT=you@example.com
 python crawl.py --only hdb-tenant-eligibility --delay 0   # smoke test one page
 python crawl.py                                           # full crawl, 2 s between requests
 python fetch_datasets.py                                  # rental datasets -> SQLite
 ```
+
+## Sites that block scripted access (hdb.gov.sg)
+
+hdb.gov.sg returns 403 to non-browser clients, so save those pages by hand instead:
+
+1. Open each tier 1 canonical HDB page in your browser and save it into `manual/` as `<seed id>.html`
+   (e.g. `manual/hdb-tenant-eligibility.html`). Use **Webpage, Complete**, not "HTML only":
+   HDB's pages may build their content with JavaScript, and "Complete" saves the rendered page.
+   Alternatively, copy the page text into `<seed id>.md`.
+2. Run `python crawl.py --local manual`.
+
+It reports filenames that match no seed, pages with too little text, and tier 1 pages you haven't saved yet.
+Output records `source: manual` and the file's saved time as `fetched_at`.
 
 ## Output
 

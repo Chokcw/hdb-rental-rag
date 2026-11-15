@@ -11,6 +11,7 @@ Only pages whose content hash changed since the last run are flagged `changed`,
 so the embedding step can re-embed just those.
 
 Usage:
+  python crawl.py --local manual     # ingest pages you saved by hand into manual/
   python crawl.py                    # crawl everything
   python crawl.py --only hdb-tenant-eligibility
   python crawl.py --tier 1 --delay 3
@@ -21,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 import time
@@ -34,7 +36,10 @@ import yaml
 from bs4 import BeautifulSoup
 from markdownify import markdownify
 
-USER_AGENT = "hdb-rental-rag-research/0.1 (personal portfolio project; contact: set CRAWLER_CONTACT)"
+# Contact goes in the User-Agent so site operators can reach you. Read from the environment so it
+# never lands in the repo:  export CRAWLER_CONTACT=you@example.com
+CONTACT = os.environ.get("CRAWLER_CONTACT", "").strip()
+USER_AGENT = f"hdb-rental-rag-research/0.1 (personal portfolio project; contact: {CONTACT or 'unset'})"
 OUT = Path("corpus")
 MIN_TEXT_CHARS = 400  # below this, the page is probably rendered client-side
 
@@ -127,7 +132,8 @@ def previous_hashes() -> dict[str, str]:
     return last
 
 
-def write_page(seed: dict, final_url: str, title: str, md: str, h: str, fetched_at: str) -> None:
+def write_page(seed: dict, final_url: str, title: str, md: str, h: str, fetched_at: str,
+               source: str = "crawl") -> None:
     front = {
         "id": seed["id"],
         "url": seed["url"],
@@ -136,6 +142,7 @@ def write_page(seed: dict, final_url: str, title: str, md: str, h: str, fetched_
         "tier": seed["tier"],
         "audience": seed["audience"],
         "canonical": seed["canonical"],
+        "source": source,  # "crawl" or "manual"; for manual pages fetched_at is when the file was saved
         "hash": h,
         "fetched_at": fetched_at,
     }
@@ -199,21 +206,92 @@ def crawl(seeds: list[dict], delay: float) -> int:
     return failures
 
 
+LOCAL_EXTS = (".html", ".htm", ".md", ".txt")
+
+
+def ingest_local(seeds: list[dict], folder: Path, all_ids: set[str]) -> int:
+    """Ingest pages you saved by hand (for sites that block scripted access).
+
+    Looks in `folder` for <seed id>.html|.htm|.md|.txt. HTML goes through the same
+    extraction as crawled pages; .md/.txt are used as-is. The file's modified time
+    is recorded as fetched_at, and source is marked "manual".
+    """
+    if not folder.is_dir():
+        sys.exit(f"Not a folder: {folder}")
+    OUT.mkdir(exist_ok=True)
+    prev = previous_hashes()
+    seen_hashes: dict[str, str] = {}
+    problems = 0
+
+    # Files that don't match any seed id are usually typos in the filename
+    for f in sorted(folder.iterdir()):
+        if f.suffix.lower() in LOCAL_EXTS and f.stem not in all_ids:
+            print(f"! {f.name} matches no seed id; check the filename")
+            problems += 1
+
+    missing: list[str] = []
+    with (OUT / "manifest.jsonl").open("a") as manifest:
+        for seed in seeds:
+            path = next((p for ext in LOCAL_EXTS if (p := folder / f"{seed['id']}{ext}").exists()), None)
+            if path is None:
+                if seed["canonical"] and seed["tier"] == 1:
+                    missing.append(seed["id"])
+                continue
+
+            saved_at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds")
+            text = path.read_text(errors="replace")
+            if path.suffix.lower() in (".html", ".htm"):
+                title, md = extract(text)
+            else:
+                m = re.search(r"^#\s+(.+)$", text, re.M)
+                title, md = (m.group(1) if m else seed["id"]), text.strip() + "\n"
+
+            h = content_hash(md)
+            rec = {
+                "id": seed["id"], "url": seed["url"], "fetched_at": saved_at, "source": "manual",
+                "file": path.name, "status": "ok", "hash": h, "chars": len(md),
+                "changed": prev.get(seed["id"]) != h, "duplicate_of": seen_hashes.get(h),
+            }
+            seen_hashes.setdefault(h, seed["id"])
+            if len(md) < MIN_TEXT_CHARS:
+                rec["status"] = "thin_content"
+                problems += 1
+                print(f"! {seed['id']}: only {len(md)} chars. Re-save with 'Webpage, Complete' or paste the text into {seed['id']}.md")
+            write_page(seed, seed["url"], title, md, h, saved_at, source="manual")
+            flag = "changed" if rec["changed"] else "unchanged"
+            print(f"ok {seed['id']}: {len(md)} chars, {flag}")
+            manifest.write(json.dumps(rec) + "\n")
+
+    if missing:
+        print(f"\nNo local file yet for {len(missing)} tier 1 page(s): " + ", ".join(missing))
+    return problems
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--seeds", type=Path, default=Path("seeds.yaml"))
+    ap.add_argument("--local", type=Path, metavar="DIR",
+                    help="ingest hand-saved pages from DIR (<seed id>.html/.md) instead of fetching")
     ap.add_argument("--only", nargs="*", help="crawl only these seed ids")
     ap.add_argument("--tier", type=int, nargs="*", help="crawl only these tiers")
     ap.add_argument("--delay", type=float, default=2.0, help="seconds between requests (default 2)")
     args = ap.parse_args()
 
     seeds = load_seeds(args.seeds)
+    all_ids = {s["id"] for s in seeds}
     if args.only:
         seeds = [s for s in seeds if s["id"] in set(args.only)]
     if args.tier:
         seeds = [s for s in seeds if s["tier"] in set(args.tier)]
     if not seeds:
         sys.exit("No seeds matched.")
+
+    if args.local:
+        sys.exit(1 if ingest_local(seeds, args.local, all_ids) else 0)
+
+    if not CONTACT:
+        sys.exit("Set CRAWLER_CONTACT first, e.g.  export CRAWLER_CONTACT=you@example.com  "
+                 "(sent in the User-Agent so site operators can reach you; not stored in the repo).")
 
     failures = crawl(seeds, args.delay)
     sys.exit(1 if failures else 0)
