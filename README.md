@@ -1,7 +1,8 @@
-# HDB rental RAG — ingestion
+# HDB rental RAG
 
-Crawls official sources on HDB rentals into markdown for a RAG index, and loads
-HDB's rental datasets from data.gov.sg into SQLite for price questions.
+Crawls official sources on HDB rentals into markdown, splits them into chunks, indexes
+them in Weaviate for search, and loads HDB's rental datasets from data.gov.sg into
+SQLite for price questions.
 
 ## Files
 
@@ -10,6 +11,13 @@ HDB's rental datasets from data.gov.sg into SQLite for price questions.
 | `seeds.yaml` | 33 pages (tiers 1, 2, 4) and 3 datasets (tier 3), with audience, canonical flag and refresh cadence |
 | `crawl.py` | Fetches pages politely, extracts main content to markdown (tables kept), tracks content hashes |
 | `fetch_datasets.py` | Pages through the data.gov.sg API into `data/rentals.db` |
+| `chunker.py` | Splits `corpus/*.md` into chunks by heading; keeps the heading path; stable chunk ids |
+| `embed.py` | Text to vectors (OpenAI `text-embedding-3-small`, or `fake` for testing) |
+| `store.py` | All Weaviate code (embedded or Docker). Swap this file to try another store |
+| `index.py` | Chunk, embed only new/changed chunks, load into Weaviate |
+| `search.py` | `retrieve(question, k, alpha, audience)` — hybrid keyword + meaning search |
+| `tracing.py` | LangSmith tracing in one file; does nothing unless switched on |
+| `test_chunker.py` | Chunker tests (`python test_chunker.py`) |
 
 ## Run
 
@@ -24,6 +32,37 @@ python crawl.py --only hdb-tenant-eligibility --delay 0   # smoke test one page
 python crawl.py                                           # full crawl, 2 s between requests
 python fetch_datasets.py                                  # rental datasets -> SQLite
 ```
+
+## Index and search (Weaviate)
+
+```bash
+pip install -r requirements.txt
+export OPENAI_API_KEY=sk-...
+python chunker.py --show 3          # look at the chunks first
+python index.py                     # first run downloads the Weaviate binary (~165 MB)
+python search.py "how many tenants can live in a 4-room flat" --alpha 0.5
+```
+
+- **Embedded mode** (default) runs Weaviate inside the Python process: Linux/macOS only,
+  experimental, data in `data/weaviate/`, stops when the script exits. Don't run two
+  scripts against the same data folder at once. For Docker instead:
+  `WEAVIATE_MODE=docker` and start Weaviate yourself.
+- `index.py` is safe to re-run. Unchanged chunks are not re-embedded; removed ones are deleted.
+  `--rebuild` wipes and re-embeds everything.
+- `alpha` controls the search mix: 0 = keyword only, 1 = meaning only. Compare values on the eval set.
+- `EMBEDDINGS=fake python index.py` tests the plumbing without OpenAI (search quality is meaningless).
+- `python index.py` skips pages that are not canonical in `seeds.yaml` or have almost no text.
+  Currently skipped: `hdb-owner-flat-application`, `hdb-tenant-eligibility`, `mnd-flat-classification`.
+
+### Tracing (LangSmith)
+
+```bash
+export LANGSMITH_TRACING=true LANGSMITH_API_KEY=... LANGSMITH_PROJECT=hdb-rental-rag
+python search.py "can a PR rent out their flat"
+```
+
+Each call appears as a trace: `retrieve` → `embed` + `weaviate_hybrid_search`, with the
+query, alpha, filter and the chunks returned with scores. Answer-generation spans come next.
 
 ## Sites that block scripted access (hdb.gov.sg)
 
