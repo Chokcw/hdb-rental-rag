@@ -31,7 +31,8 @@ hdb.gov.sg returns 403 to non-browser clients, so save those pages by hand inste
 
 1. Open each tier 1 canonical HDB page in your browser and **click every expandable section open**
    (HDB only loads a section's text when it is opened). Then save the page into `manual/` as `<seed id>.html`
-   (e.g. `manual/hdb-tenant-eligibility.html`) using **Webpage, Complete**, not "HTML only".
+   (e.g. `manual/hdb-tenant-eligibility.html`) using **Webpage, Complete**, not "HTML only". In Safari, use File > Save As > **Web Archive**
+   (`<seed id>.webarchive` works too).
    Alternatively, with all sections open, copy the page text into `<seed id>.md`.
 2. Run `python crawl.py --local manual`.
 

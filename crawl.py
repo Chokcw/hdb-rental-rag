@@ -23,6 +23,7 @@ import argparse
 import hashlib
 import json
 import os
+import plistlib
 import re
 import sys
 import time
@@ -232,13 +233,23 @@ def crawl(seeds: list[dict], delay: float) -> int:
     return failures
 
 
-LOCAL_EXTS = (".html", ".htm", ".md", ".txt")
+LOCAL_EXTS = (".html", ".htm", ".webarchive", ".md", ".txt")
+HTML_EXTS = (".html", ".htm", ".webarchive")
+
+
+def read_saved(path: Path) -> str:
+    """Return the page text/HTML of a hand-saved file. Safari .webarchive files are plists wrapping the HTML."""
+    if path.suffix.lower() == ".webarchive":
+        main = plistlib.loads(path.read_bytes())["WebMainResource"]
+        enc = main.get("WebResourceTextEncodingName") or "utf-8"
+        return bytes(main["WebResourceData"]).decode(enc, errors="replace")
+    return path.read_text(errors="replace")
 
 
 def ingest_local(seeds: list[dict], folder: Path, all_ids: set[str]) -> int:
     """Ingest pages you saved by hand (for sites that block scripted access).
 
-    Looks in `folder` for <seed id>.html|.htm|.md|.txt. HTML goes through the same
+    Looks in `folder` for <seed id>.html|.htm|.webarchive|.md|.txt. HTML goes through the same
     extraction as crawled pages; .md/.txt are used as-is. The file's modified time
     is recorded as fetched_at, and source is marked "manual".
     """
@@ -265,8 +276,8 @@ def ingest_local(seeds: list[dict], folder: Path, all_ids: set[str]) -> int:
                 continue
 
             saved_at = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds")
-            text = path.read_text(errors="replace")
-            if path.suffix.lower() in (".html", ".htm"):
+            text = read_saved(path)
+            if path.suffix.lower() in HTML_EXTS:
                 title, md = extract(text)
             else:
                 m = re.search(r"^#\s+(.+)$", text, re.M)
@@ -279,7 +290,7 @@ def ingest_local(seeds: list[dict], folder: Path, all_ids: set[str]) -> int:
                 "changed": prev.get(seed["id"]) != h, "duplicate_of": seen_hashes.get(h),
             }
             seen_hashes.setdefault(h, seed["id"])
-            closed = empty_collapsed_sections(text) if path.suffix.lower() in (".html", ".htm") else 0
+            closed = empty_collapsed_sections(text) if path.suffix.lower() in HTML_EXTS else 0
             if closed:
                 rec["status"] = "collapsed_sections"
                 problems += 1
