@@ -7,7 +7,7 @@ tier: 1
 audience: tenant
 canonical: true
 source: manual
-hash: 0ef8781aec840305
+hash: dd9a2a481ff8232d
 fetched_at: '2026-11-15T00:52:16+00:00'
 ---
 
@@ -18,6 +18,8 @@ Not ready to buy your own home? Find out your options for renting a flat from HD
 ## Related topics
 
 [Go to e-Services](/eservices/renting-a-flat/)
+
+Parenthood Provisional Housing Scheme
 
 [Eligibility for Renting a Flat or a Bedroom from Open Market
 
