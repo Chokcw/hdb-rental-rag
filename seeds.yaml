@@ -35,6 +35,7 @@ pages:
     url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-a-flat/rental-statistics
     tier: 1
     audience: both
+    canonical: false   # ~2,300 rows of median-rent tables: answered from the dataset via SQL, not indexed for RAG
   - id: hdb-owner-bedroom-eligibility
     url: https://www.hdb.gov.sg/managing-my-home/home-ownership/renting-out-a-flat-or-bedrooms/renting-out-bedrooms/eligibility
     tier: 1
