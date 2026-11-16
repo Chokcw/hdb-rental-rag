@@ -12,7 +12,8 @@ SQLite for price questions.
 | `crawl.py` | Fetches pages politely, extracts main content to markdown (tables kept), tracks content hashes |
 | `fetch_datasets.py` | Pages through the data.gov.sg API into `data/rentals.db` |
 | `chunker.py` | Splits `corpus/*.md` into chunks by heading; keeps the heading path; stable chunk ids |
-| `embed.py` | Text to vectors (OpenAI `text-embedding-3-small`, or `fake` for testing) |
+| `embed.py` | Text to vectors: `text-embedding-3-small` via OpenRouter or OpenAI, or `fake` for testing |
+| `config.py` | Loads `.env` (see `.env.example`) |
 | `store.py` | All Weaviate code (embedded or Docker). Swap this file to try another store |
 | `index.py` | Chunk, embed only new/changed chunks, load into Weaviate |
 | `search.py` | `retrieve(question, k, alpha, audience)` — hybrid keyword + meaning search |
@@ -37,7 +38,7 @@ python fetch_datasets.py                                  # rental datasets -> S
 
 ```bash
 pip install -r requirements.txt
-export OPENAI_API_KEY=sk-...
+cp .env.example .env                # then put your OPENROUTER_API_KEY in .env (git ignores it)
 python chunker.py --show 3          # look at the chunks first
 python index.py                     # first run downloads the Weaviate binary (~165 MB)
 python search.py "how many tenants can live in a 4-room flat" --alpha 0.5
@@ -50,16 +51,24 @@ python search.py "how many tenants can live in a 4-room flat" --alpha 0.5
 - `index.py` is safe to re-run. Unchanged chunks are not re-embedded; removed ones are deleted.
   `--rebuild` wipes and re-embeds everything.
 - `alpha` controls the search mix: 0 = keyword only, 1 = meaning only. Compare values on the eval set.
-- `EMBEDDINGS=fake python index.py` tests the plumbing without OpenAI (search quality is meaningless).
+- Provider is picked from your key: `OPENROUTER_API_KEY` (default) or `OPENAI_API_KEY`; force one
+  with `EMBEDDINGS=openrouter|openai|fake`. Both serve the same model, so they share one Weaviate
+  collection. If you change `EMBED_MODEL`, re-run `python index.py --rebuild`.
+- `EMBEDDINGS=fake python index.py` tests the plumbing without any key (search quality is meaningless).
 - `python index.py` skips pages that are not canonical in `seeds.yaml` or have almost no text.
   Currently skipped: `hdb-owner-flat-application`, `hdb-tenant-eligibility`, `mnd-flat-classification`.
 
 ### Tracing (LangSmith)
 
-```bash
-export LANGSMITH_TRACING=true LANGSMITH_API_KEY=... LANGSMITH_PROJECT=hdb-rental-rag
-python search.py "can a PR rent out their flat"
+Add these to `.env` (or export them):
+
 ```
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=...
+LANGSMITH_PROJECT=hdb-rental-rag
+```
+
+Then run `python search.py "can a PR rent out their flat"`.
 
 Each call appears as a trace: `retrieve` → `embed` + `weaviate_hybrid_search`, with the
 query, alpha, filter and the chunks returned with scores. Answer-generation spans come next.

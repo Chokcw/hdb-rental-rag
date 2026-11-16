@@ -13,6 +13,8 @@ To use a different tool later (e.g. Langfuse), only this file needs to change.
 """
 from __future__ import annotations
 
+import config  # noqa: F401  (loads .env before we read LANGSMITH_* variables)
+
 import os
 
 try:

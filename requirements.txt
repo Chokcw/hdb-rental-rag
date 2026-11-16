@@ -5,3 +5,4 @@ pyyaml>=6.0
 weaviate-client>=4.23
 openai>=1.40
 langsmith>=0.2
+python-dotenv>=1.0

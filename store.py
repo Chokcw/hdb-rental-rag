@@ -21,6 +21,7 @@ import weaviate
 from weaviate.classes.config import Configure, DataType, Property, Tokenization
 from weaviate.classes.query import Filter, HybridFusion, MetadataQuery
 
+from embed import embedding_key
 from tracing import trace
 
 WEAVIATE_VERSION = os.getenv("WEAVIATE_VERSION", "1.40.2")  # pinned: the client's default may lag
@@ -43,7 +44,7 @@ class Hit:
 
 
 def collection_name(mode: str) -> str:
-    return f"HdbChunk_{mode}"
+    return f"HdbChunk_{embedding_key(mode)}"
 
 
 def connect() -> weaviate.WeaviateClient:
