@@ -15,7 +15,7 @@ import json
 import re
 from urllib.parse import urlparse
 
-from llm import chat
+from llm import ChatError, chat
 from search import DEFAULT_ALPHA, retrieve
 from tracing import trace
 
@@ -99,7 +99,11 @@ def answer(question: str, k: int = DEFAULT_K, alpha: float = DEFAULT_ALPHA,
         problems.append("model did not start with a STATUS line")
     return {
         "question": question, "status": status, "answer": text,
-        "cited": [{"n": n, "title": hits[n - 1]["title"], "heading_path": hits[n - 1]["heading_path"],
+        "sources": [{"n": i, "chunk_id": h["chunk_id"], "page_id": h["page_id"], "publisher": publisher(h["url"]),
+                     "title": h["title"], "heading_path": h["heading_path"], "url": h["url"],
+                     "last_checked": h["fetched_at"][:10], "text": h["text"]} for i, h in enumerate(hits, 1)],
+        "cited": [{"n": n, "page_id": hits[n - 1]["page_id"], "title": hits[n - 1]["title"],
+                   "heading_path": hits[n - 1]["heading_path"],
                    "url": hits[n - 1]["url"], "publisher": publisher(hits[n - 1]["url"]),
                    "last_checked": hits[n - 1]["fetched_at"][:10]} for n in cites["cited"]],
         "problems": problems, "retrieved": [h["chunk_id"] for h in hits], "usage": usage,
@@ -133,7 +137,10 @@ def main():
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    r = answer(args.question, args.k, args.alpha, args.audience, args.dry_run)
+    try:
+        r = answer(args.question, args.k, args.alpha, args.audience, args.dry_run)
+    except ChatError as e:
+        raise SystemExit(str(e))
     if args.dry_run:
         for m in r["messages"]:
             print(f"--- {m['role']} ---\n{m['content']}\n")

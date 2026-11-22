@@ -31,16 +31,26 @@ def chat_model() -> str:
     return os.getenv("CHAT_MODEL") or DEFAULT_MODELS[provider()]
 
 
-def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 900) -> tuple[str, dict]:
-    """Returns (text, usage). Raises with a readable message if the call fails."""
+class ChatError(RuntimeError):
+    """The chat call failed (bad model id, bad key, provider error)."""
+
+
+def judge_model() -> str:
+    """Model for the eval judge. Prefer a different model from CHAT_MODEL so it is not grading itself."""
+    return os.getenv("JUDGE_MODEL") or chat_model()
+
+
+def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 900,
+         model: str | None = None) -> tuple[str, dict]:
+    """Returns (text, usage). Raises ChatError with a readable message if the call fails."""
     client = wrap_openai(make_client(provider()))
-    model = chat_model()
+    model = model or chat_model()
     try:
         resp = client.chat.completions.create(
             model=model, messages=messages, temperature=temperature, max_tokens=max_tokens)
     except Exception as e:  # surface model-id typos and key problems clearly
-        raise SystemExit(f"Chat call failed for model '{model}' via {provider()}: {e}\n"
-                         f"(Check CHAT_MODEL and your API key in .env.)")
+        raise ChatError(f"Chat call failed for model '{model}' via {provider()}: {e} "
+                        f"(check CHAT_MODEL / JUDGE_MODEL and your API key in .env)") from e
     text = (resp.choices[0].message.content or "").strip()
     u = resp.usage
     usage = {"model": model, "prompt_tokens": getattr(u, "prompt_tokens", None),

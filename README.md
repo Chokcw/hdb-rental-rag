@@ -23,6 +23,8 @@ SQLite for price questions.
 | `test_chunker.py` | Chunker tests (`python test_chunker.py`) |
 | `evals/questions.yaml` | 46 eval questions with reference answers, source pages and quoted evidence |
 | `evals/run_retrieval.py` | Validates the question file; scores retrieval hit rate by category and alpha |
+| `evals/run_answers.py` | Runs every question through `answer.py`, scores with checks + LLM judges, logs a LangSmith experiment |
+| `evals/judges.py` | The LLM judge prompts (correctness, groundedness, conflict handling) |
 
 ## Run
 
@@ -104,7 +106,23 @@ python evals/run_retrieval.py --alpha 0 0.3 0.5 0.7 1 --k 3 5 --misses
 route to SQL, and 3 that should be declined or hedged. Each answerable question lists the pages
 that contain the answer and a verbatim `evidence` quote. Reference answers are drafts; review
 them before trusting scores. `q30` is a known gap until `hdb-owner-flat-application` is re-saved.
-Answer-quality (LLM judge) and routing evals come after the answer step exists.
+
+### Answer evals
+
+```bash
+python evals/run_answers.py --limit 5        # cheap trial: 5 questions
+python evals/run_answers.py                  # all questions, logged to LangSmith as an experiment
+python evals/run_answers.py --alpha 0.5      # try another setting, then compare experiments in LangSmith
+python evals/run_answers.py --no-upload      # keep everything on your machine
+```
+
+Metrics: `status_ok` (answered or declined as expected), `citations_valid`, `cites_right_page`,
+`correct` (judge vs reference), `grounded` (judge vs retrieved sources), `conflict_handled`
+(judge; conflict questions only) and a strict `pass`. Put `JUDGE_MODEL=` in `.env` so the judge
+is a different model from `CHAT_MODEL`. The 2 rent-data questions are skipped until the SQL
+router exists (`--include-sql` runs them anyway). Each run saves details to `evals/results/`.
+First read the failures, not the averages: a judge can be wrong, so spot-check a few of its verdicts.
+Routing evals come after the router.
 
 ## Sites that block scripted access (hdb.gov.sg)
 
