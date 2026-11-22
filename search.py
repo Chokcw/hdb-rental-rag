@@ -11,7 +11,7 @@ Command line:
 from __future__ import annotations
 
 import argparse
-from functools import lru_cache
+import threading
 
 from embed import embed, get_mode
 from store import WeaviateStore
@@ -20,9 +20,17 @@ from tracing import trace
 DEFAULT_ALPHA = 0.7  # from the 23 Nov retrieval run: 0.5 and 0.7 tie at hit@5 (95%), 0.7 is best at hit@3 (90%)
 
 
-@lru_cache(maxsize=1)
+_stores: dict[str, WeaviateStore] = {}
+_lock = threading.Lock()
+
+
 def _store(mode: str) -> WeaviateStore:
-    return WeaviateStore(mode)
+    """One shared store per process. Locked, because eval workers call this at the same moment
+    and embedded Weaviate cannot be started twice on the same data folder and port."""
+    with _lock:
+        if mode not in _stores:
+            _stores[mode] = WeaviateStore(mode)
+        return _stores[mode]
 
 
 @trace("retrieve", run_type="retriever")
