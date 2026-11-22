@@ -1,7 +1,7 @@
 """Question in, cited answer out.
 
     python answer.py "Can a PR rent out their whole HDB flat?"
-    python answer.py "How many tenants in a 4-room flat?" --audience owner --k 6 --alpha 0.5
+    python answer.py "How many tenants in a 4-room flat?" --audience owner --k 6 --alpha 0.7
     python answer.py "..." --dry-run      # show the exact prompt, don't call the model
     python answer.py "..." --json         # machine-readable result (what the evals use)
 
@@ -16,11 +16,10 @@ import re
 from urllib.parse import urlparse
 
 from llm import chat
-from search import retrieve
+from search import DEFAULT_ALPHA, retrieve
 from tracing import trace
 
 DEFAULT_K = 6
-DEFAULT_ALPHA = 0.5
 
 SYSTEM_PROMPT = """You answer questions about renting HDB flats in Singapore, using ONLY the numbered sources provided.
 

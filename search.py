@@ -3,10 +3,10 @@
 This is the only function the rest of the app (answering, evals) calls:
 
     from search import retrieve
-    hits = retrieve("How many tenants can I have in a 4-room flat?", k=5, alpha=0.5)
+    hits = retrieve("How many tenants can I have in a 4-room flat?", k=5, alpha=0.7)
 
 Command line:
-    python search.py "can a PR rent out their HDB flat" --k 5 --alpha 0.5 --audience owner
+    python search.py "can a PR rent out their HDB flat" --k 5 --alpha 0.7 --audience owner
 """
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ from embed import embed, get_mode
 from store import WeaviateStore
 from tracing import trace
 
+DEFAULT_ALPHA = 0.7  # from the 23 Nov retrieval run: 0.5 and 0.7 tie at hit@5 (95%), 0.7 is best at hit@3 (90%)
+
 
 @lru_cache(maxsize=1)
 def _store(mode: str) -> WeaviateStore:
@@ -24,7 +26,7 @@ def _store(mode: str) -> WeaviateStore:
 
 
 @trace("retrieve", run_type="retriever")
-def retrieve(question: str, k: int = 5, alpha: float = 0.5, audience: str | None = None) -> list[dict]:
+def retrieve(question: str, k: int = 5, alpha: float = DEFAULT_ALPHA, audience: str | None = None) -> list[dict]:
     """alpha: 0 = keyword only, 1 = meaning (vector) only. audience: owner | tenant | None."""
     mode = get_mode()
     vector = embed([question], mode)[0]
@@ -35,7 +37,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("question")
     ap.add_argument("--k", type=int, default=5)
-    ap.add_argument("--alpha", type=float, default=0.5)
+    ap.add_argument("--alpha", type=float, default=DEFAULT_ALPHA)
     ap.add_argument("--audience", choices=["owner", "tenant"])
     args = ap.parse_args()
 

@@ -132,8 +132,9 @@ questions:
     question: Can I list my HDB flat on Airbnb for short stays?
     expect: answer
     expected: No. Short-term rental is not allowed (minimum 6 months), and renting to tourists or other non-residential use is not allowed.
-    source_pages: [hdb-owner-flat-regulations, hdb-owner-bedroom-regulations]
+    source_pages: [hdb-owner-flat-regulations, hdb-owner-bedroom-regulations, govsg-renting-out-guide]
     evidence: "to tourists, for commercial filming or goods storage, is also not allowed"
+    notes: Label widened on 23 Nov after the first retrieval run - the gov.sg guide also says short-term renting is not allowed ("Renting out on a short-term basis is not allowed."), so retrieving it is a valid hit for the short-term part.
 
   # ---------------- number of tenants ----------------
   - id: q14-max-tenants-3room
