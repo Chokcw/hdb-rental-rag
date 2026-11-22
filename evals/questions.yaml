@@ -1,0 +1,431 @@
+# Eval questions for the HDB rental RAG.
+# Drafted from the corpus on 22 Nov 2026 -- REVIEW EVERY ANSWER before trusting the numbers.
+#
+# Fields
+#   id            stable id
+#   category      fact | table | conflict | multi_hop | computation | known_gap | route_sql | out_of_scope | no_answer
+#   question      what a user would type
+#   audience      owner | tenant | (omit)        -> optional retrieval filter
+#   expect        answer   = should answer from the documents
+#                 route_sql = should be answered from the rent datasets (SQL), not RAG
+#                 decline  = should say it cannot / will not answer from these sources
+#   expected      short reference answer (what a correct answer must say)
+#   source_pages  page ids (corpus/<id>.md) that contain the answer; retrieval is a hit if ANY appears in the top k
+#   evidence      exact phrase copied from the source page (checked by `python evals/run_retrieval.py --check`)
+#   notes         why this question is here / what could go wrong
+
+questions:
+
+  # ---------------- owner eligibility ----------------
+  - id: q01-pr-rent-whole-flat
+    category: fact
+    audience: owner
+    question: Can a Singapore PR rent out their whole HDB flat?
+    expect: answer
+    expected: No. Only Singapore Citizens may rent out a whole flat; PR flat owners are not allowed to.
+    source_pages: [hdb-owner-flat-eligibility, govsg-renting-out-guide]
+    evidence: "Singapore Permanent Resident flat owners are not allowed to do so."
+
+  - id: q02-mop-length
+    category: fact
+    audience: owner
+    question: How long must I own my HDB flat before I can rent it out?
+    expect: answer
+    expected: You must complete the 5-year Minimum Occupation Period. It is 3 years for a non-subsidised flat bought from the open market before 30 August 2010.
+    source_pages: [hdb-owner-flat-eligibility, govsg-renting-out-guide]
+    evidence: "the MOP is 3 years"
+
+  - id: q03-prime-plus
+    category: fact
+    audience: owner
+    question: Can I rent out my Prime or Plus flat once the MOP is over?
+    expect: answer
+    expected: No. Owners of Prime and Plus flats cannot rent out the whole flat, even after the 10-year MOP (they can still rent out bedrooms).
+    source_pages: [hdb-owner-flat-eligibility, govsg-renting-out-guide]
+    evidence: "Owners of Prime and Plus flats are not allowed to rent out the flat even after the 10-year MOP."
+    notes: Bedrooms-only renting for Plus/Prime owners is in the gov.sg guide.
+
+  - id: q04-mop-after-transfer
+    category: fact
+    audience: owner
+    question: When does the MOP start counting if my flat was transferred to me?
+    expect: answer
+    expected: From the effective date of the transfer of ownership, or the date the owner was included as an authorised occupier. The original purchaser's MOP counts from the purchase date.
+    source_pages: [hdb-owner-flat-eligibility]
+    evidence: "computed from the effective date of the transfer of flat ownership"
+
+  - id: q05-two-room-bedroom
+    category: fact
+    audience: owner
+    question: Can I rent out a bedroom in my 2-room flat?
+    expect: answer
+    expected: No. Only 3-room or bigger flats can rent out bedrooms; 1- and 2-room flats can only be rented out whole.
+    source_pages: [hdb-owner-bedroom-eligibility, govsg-renting-out-guide, hdb-tenant-regulations]
+    evidence: "If you own a 1 or 2-room flat, you are not allowed to rent out your bedroom."
+
+  - id: q06-bedroom-count-4room
+    category: table
+    audience: owner
+    question: How many bedrooms can I rent out in a 4-room flat, and how many people can stay in total?
+    expect: answer
+    expected: Up to 2 bedrooms, with at most 8 occupants (owners, authorised occupiers and tenants), reverting to 6 for rental periods beyond 31 December 2028.
+    source_pages: [hdb-owner-bedroom-eligibility, hdb-tenant-regulations]
+    evidence: "| 4-room and bigger | 2 | 8 |"
+
+  - id: q07-pr-bedroom
+    category: fact
+    audience: owner
+    question: I'm a Singapore PR. Can I rent out a spare bedroom?
+    expect: answer
+    expected: Yes, if you own a 3-room or bigger flat. Singapore Citizen and PR flat owners can rent out bedrooms.
+    source_pages: [hdb-owner-landing, govsg-renting-out-guide]
+    evidence: "as a Singapore Citizen or Singapore Permanent Resident flat owner"
+
+  - id: q08-bedroom-before-mop
+    category: fact
+    audience: owner
+    question: Can I rent out a bedroom before I finish the MOP?
+    expect: answer
+    expected: Yes. Owners of 3-room or larger flats can rent out bedrooms before the MOP is fulfilled (HDB approval still required).
+    source_pages: [govsg-renting-out-guide]
+    evidence: "Owners can rent out their bedrooms before fulfilment of the minimum occupation period."
+    notes: Only the gov.sg guide says this. Good test of single-source recall.
+
+  - id: q09-partitioned-room
+    category: fact
+    audience: owner
+    question: Can I rent out a partitioned room in my flat?
+    expect: answer
+    expected: No. Only bedrooms originally constructed by HDB can be rented out; partitioned rooms cannot be used as tenant bedrooms.
+    source_pages: [hdb-owner-bedroom-eligibility, hdb-tenant-regulations]
+    evidence: "Only bedrooms originally constructed by HDB can be rented out."
+
+  - id: q10-live-in-flat
+    category: fact
+    audience: owner
+    question: If I rent out bedrooms, do I have to keep living in the flat?
+    expect: answer
+    expected: Yes. Owners and authorised occupiers must keep living in the flat during the rental. Locking a room and renting out the rest without staying there is not allowed, and approval can be revoked.
+    source_pages: [hdb-owner-bedroom-regulations, govsg-renting-out-guide]
+    evidence: "Locking up a room and renting out the rest of the flat without physically staying in it is not allowed."
+
+  # ---------------- rental period ----------------
+  - id: q11-min-period
+    category: fact
+    question: What is the minimum rental period for an HDB flat?
+    expect: answer
+    expected: 6 months per application. Short-term rental is not allowed.
+    source_pages: [hdb-owner-flat-regulations, hdb-tenant-regulations, govsg-renting-out-guide]
+    evidence: "The minimum rental period for each tenant must be 6 months per application."
+
+  - id: q12-max-period-pr
+    category: fact
+    question: My tenants are PRs. How long can I rent the flat to them?
+    expect: answer
+    expected: Up to 2 years per approval if any tenant is a non-Malaysian non-citizen (PRs and foreigners); 3 years if all tenants are Singaporeans or Malaysians.
+    source_pages: [hdb-owner-flat-regulations, hdb-tenant-regulations, govsg-renting-out-guide]
+    evidence: "The maximum is capped at 2 years as long as one or more tenant is a non-Malaysian non-citizen."
+
+  - id: q13-airbnb
+    category: fact
+    audience: owner
+    question: Can I list my HDB flat on Airbnb for short stays?
+    expect: answer
+    expected: No. Short-term rental is not allowed (minimum 6 months), and renting to tourists or other non-residential use is not allowed.
+    source_pages: [hdb-owner-flat-regulations, hdb-owner-bedroom-regulations]
+    evidence: "to tourists, for commercial filming or goods storage, is also not allowed"
+
+  # ---------------- number of tenants ----------------
+  - id: q14-max-tenants-3room
+    category: table
+    question: What is the maximum number of tenants in a 3-room HDB flat?
+    expect: answer
+    expected: 6 tenants.
+    source_pages: [hdb-owner-flat-eligibility, hdb-tenant-regulations, govsg-renting-out-guide]
+    evidence: "| 3-room | 6 |"
+
+  - id: q15-max-tenants-4room-conflict
+    category: conflict
+    question: How many tenants can I have in a 4-room flat, and until when?
+    expect: answer
+    expected: Up to 8 tenants, reverting to a maximum of 6 for rental periods extending beyond 31 December 2028 (HDB). The gov.sg guide's 31 December 2026 date is out of date.
+    source_pages: [hdb-owner-flat-eligibility, hdb-tenant-regulations]
+    evidence: "revert to a maximum of 6 tenants for rental period extending beyond 31 December 2028"
+    notes: Sources conflict. HDB (31 Dec 2028) must outrank gov.sg (31 Dec 2026). A good answer uses 2028 and ideally flags the discrepancy.
+
+  - id: q16-family-limit
+    category: fact
+    question: Does the maximum tenant limit apply if the tenants are all one family?
+    expect: answer
+    expected: No, not when all tenants renting a whole flat are from the same family unit. (For bedroom rentals the occupant cap still applies to families.)
+    source_pages: [hdb-owner-flat-eligibility, hdb-tenant-regulations]
+    evidence: "does not apply if all the tenants renting a whole flat are from the same family unit"
+
+  # ---------------- non-citizen quota ----------------
+  - id: q17-nc-quota
+    category: fact
+    question: What is the non-citizen quota for renting HDB flats?
+    expect: answer
+    expected: 8% at the neighbourhood level and 11% at the block level. It applies to non-Malaysian non-citizens (PRs and foreigners) and does not apply to renting bedrooms.
+    source_pages: [hdb-owner-flat-eligibility, hdb-tenant-regulations, cea-tenant-hdb, govsg-renting-out-guide]
+    evidence: "The quota is set at 8% at the neighbourhood level and 11% at the block level."
+
+  - id: q18-nc-malaysians
+    category: fact
+    question: Do Malaysians count towards the NC quota?
+    expect: answer
+    expected: No. Malaysians are not subject to the quota.
+    source_pages: [hdb-owner-flat-eligibility, hdb-tenant-regulations, govsg-renting-out-guide]
+    evidence: "Malaysians are not subject to this quota"
+
+  - id: q19-nc-exception
+    category: fact
+    question: When does the NC quota not apply even if there is a non-Malaysian foreigner among the tenants?
+    expect: answer
+    expected: When the family renting the flat includes at least one Singaporean and all unrelated tenants are Singaporeans or Malaysians. It also does not apply to renting bedrooms.
+    source_pages: [hdb-owner-flat-eligibility, hdb-tenant-regulations]
+    evidence: "includes at least 1 Singaporean and all unrelated tenants are Singaporeans or Malaysians"
+
+  - id: q20-check-quota
+    category: fact
+    question: How do I check whether a flat has hit the NC quota?
+    expect: answer
+    expected: Use HDB's NC quota e-service (also reachable via the HDB Map).
+    source_pages: [hdb-tenant-regulations, hdb-owner-flat-eligibility, govsg-renting-out-guide]
+    evidence: "to check if an HDB flat can be rented by non-Malaysian NCs"
+
+  # ---------------- tenant eligibility ----------------
+  - id: q21-employment-pass
+    category: fact
+    audience: tenant
+    question: Can someone on an Employment Pass rent an HDB flat?
+    expect: answer
+    expected: Yes, if the pass is valid for at least 6 months as at the application date.
+    source_pages: [hdb-owner-flat-eligibility, cea-tenant-hdb, hdb-owner-bedroom-eligibility, govsg-renting-out-guide]
+    evidence: "These passes must have a validity period of at least 6 months"
+
+  - id: q22-work-permit
+    category: fact
+    audience: tenant
+    question: Can a Work Permit holder rent an HDB flat?
+    expect: answer
+    expected: Yes, but Work Permit holders from the construction, marine and process sectors must be Malaysians; manufacturing-sector holders must also be Malaysians if renting a whole flat.
+    source_pages: [cea-tenant-hdb, govsg-renting-out-guide, hdb-owner-flat-eligibility, hdb-owner-bedroom-eligibility]
+    evidence: "Work Permit holders from the manufacturing sector must also be Malaysians if they are renting a whole HDB flat"
+    notes: Sources differ slightly in how they list sectors.
+
+  - id: q23-tourists
+    category: fact
+    question: Can tourists rent an HDB flat?
+    expect: answer
+    expected: No. Tourists are not allowed to rent HDB flats or bedrooms.
+    source_pages: [hdb-owner-flat-eligibility, cea-tenant-hdb, hdb-owner-bedroom-eligibility]
+    evidence: "Tourists are not allowed as tenants of HDB flats"
+
+  - id: q24-tenant-owns-hdb
+    category: fact
+    audience: tenant
+    question: I already own an HDB flat. Can I rent another HDB flat?
+    expect: answer
+    expected: Generally no. Exceptions are divorced/legally separated persons (only one party may rent), and owners eligible to rent out their whole flat who rent out their own flat within a month of renting.
+    source_pages: [hdb-owner-flat-eligibility, cea-tenant-hdb, hdb-owner-bedroom-eligibility]
+    evidence: "they must rent out their own flat within a month after they have rented an HDB flat from another flat owner"
+
+  - id: q25-executive-condo
+    category: fact
+    audience: tenant
+    question: Can I rent an HDB flat if I own an executive condominium?
+    expect: answer
+    expected: Not if the EC's 5-year MOP has not been met.
+    source_pages: [hdb-owner-flat-eligibility, cea-tenant-hdb, hdb-owner-bedroom-eligibility]
+    evidence: "Tenants must not be owners of Executive Condominium units where the 5-year MOP has not been met."
+
+  # ---------------- applications, fees, penalties ----------------
+  - id: q26-bedroom-fee-conflict
+    category: conflict
+    audience: owner
+    question: What is the fee to apply to rent out a bedroom?
+    expect: answer
+    expected: $9 per bedroom (HDB). The gov.sg guide's $10 figure is out of date.
+    source_pages: [hdb-owner-bedroom-eligibility, hdb-owner-bedroom-application]
+    evidence: "An administrative fee of $9 for each bedroom is payable upon approval."
+    notes: Sources conflict ($9 HDB vs $10 gov.sg). HDB must win; a good answer flags the discrepancy.
+
+  - id: q27-notify-7-days
+    category: fact
+    audience: owner
+    question: What changes must I tell HDB about within 7 days when renting out bedrooms?
+    expect: answer
+    expected: Termination or renewal of the rental, and any change to tenants or tenants' particulars. New tenants need HDB approval before they move in.
+    source_pages: [hdb-owner-bedroom-application, hdb-owner-bedroom-eligibility]
+    evidence: "Change to your tenants or tenants’ particulars"
+
+  - id: q28-unauthorised
+    category: fact
+    audience: owner
+    question: What happens if I rent out my bedrooms without HDB approval?
+    expect: answer
+    expected: The rental is unauthorised. HDB can impose a penalty and compulsorily acquire the flat, and can revoke approval.
+    source_pages: [hdb-owner-bedroom-regulations, hdb-owner-flat-regulations]
+    evidence: "imposing a penalty and compulsory acquisition of the flat"
+
+  - id: q29-overseas-owner
+    category: fact
+    audience: owner
+    question: I will be overseas while my flat is rented out. What do I need to do?
+    expect: answer
+    expected: Appoint an attorney to manage the flat for you. The attorney cannot be a tenant of your flat.
+    source_pages: [hdb-owner-flat-regulations, govsg-renting-out-guide]
+    evidence: "you must appoint an attorney to manage the flat on your behalf"
+
+  - id: q30-apply-whole-flat
+    category: known_gap
+    audience: owner
+    question: What are the steps to apply to rent out my whole flat?
+    expect: answer
+    expected: Prior HDB approval is required; apply online through HDB's e-service (MyHDB Page). Check eligibility, NC quota and tenant eligibility first.
+    source_pages: [hdb-owner-flat-application, govsg-renting-out-guide]
+    evidence: "Prior approval from HDB is required."
+    notes: hdb-owner-flat-application is currently title-only in the corpus, so only gov.sg can answer this until that page is re-saved.
+
+  # ---------------- tenancy matters ----------------
+  - id: q31-deposit
+    category: fact
+    audience: tenant
+    question: How much deposit should I pay for a rental?
+    expect: answer
+    expected: Usually one month's rent for a 1-year tenancy and two months' for a 2-year tenancy, paid on signing; tenants are advised not to pay more than a month's rent.
+    source_pages: [hdb-tenant-tenancy-matters]
+    evidence: "The deposit amount is usually equal to a month’s rent for a 1-year tenancy contract"
+    notes: The page itself is slightly inconsistent (usual 2 months for 2 years vs advice of at most 1 month). A good answer mentions both.
+
+  - id: q32-dispute
+    category: fact
+    audience: tenant
+    question: My landlord and I disagree about the deposit. What can I do?
+    expect: answer
+    expected: HDB treats this as a private matter between tenant and owner; try to settle amicably. Options include mediation at a Community Mediation Centre, the Small Claims Tribunal, or your own legal action. CEA cannot act on disputes without a property agent.
+    source_pages: [hdb-tenant-tenancy-matters, cea-tenant-hdb, cea-landlord-hdb]
+    evidence: "are private matters between the tenant and the flat owner"
+
+  - id: q33-scams
+    category: fact
+    audience: tenant
+    question: How do I check that a property agent is real?
+    expect: answer
+    expected: Check their phone number on CEA's Public Register.
+    source_pages: [hdb-tenant-tenancy-matters]
+    evidence: "check his or her phone number with"
+
+  # ---------------- stamp duty and tax (IRAS) ----------------
+  - id: q34-who-pays-stamp-duty
+    category: fact
+    question: Who pays stamp duty on a tenancy agreement?
+    expect: answer
+    expected: Whoever the agreement says; if it doesn't say, the lessee (tenant) pays lease duty under the Stamp Duties Act.
+    source_pages: [iras-who-pays-stamp-duty]
+    evidence: "Lessee or Tenant"
+
+  - id: q35-lease-duty-calc
+    category: computation
+    question: What is the stamp duty on a 2-year lease at $3,000 a month?
+    expect: answer
+    expected: Total rent is $72,000. For leases of 4 years or less the duty is 0.4% of total rent, so $288.
+    source_pages: [iras-renting-a-property]
+    evidence: "0.4% of total rent for the period of the lease"
+    notes: Tests retrieval plus arithmetic. The model should show the working.
+
+  - id: q36-stamp-deadline
+    category: fact
+    question: How soon must a tenancy agreement be stamped?
+    expect: answer
+    expected: Within 14 days of signing if signed in Singapore, or within 30 days after receiving the document in Singapore if signed overseas.
+    source_pages: [iras-renting-out-property]
+    evidence: "within 14 days after signing the document if it is signed in Singapore"
+
+  - id: q37-notify-iras
+    category: fact
+    audience: owner
+    question: Do I need to tell IRAS when I start renting out my property?
+    expect: answer
+    expected: Inform IRAS within 15 days of letting, unless the lease is stamped via myTax Portal, in which case IRAS is notified automatically.
+    source_pages: [iras-renting-out-property]
+    evidence: "you need to inform IRAS within 15 days after the letting"
+
+  - id: q38-property-tax-rates
+    category: fact
+    audience: owner
+    question: Does my property tax change if I rent out my whole flat?
+    expect: answer
+    expected: Yes. Owner-occupier rates are withdrawn from the date of letting and non-owner-occupier (higher) rates apply. Partial letting while you live there keeps owner-occupier rates.
+    source_pages: [iras-renting-out-property, hdb-owner-flat-regulations]
+    evidence: "will be withdrawn from the date of letting"
+
+  - id: q39-reinstate-rates
+    category: fact
+    audience: owner
+    question: My tenant has moved out and I'm moving back in. Do my owner-occupier tax rates come back automatically?
+    expect: answer
+    expected: No. You must reapply using the 'Apply/Withdraw Owner-Occupier Tax Rates' digital service. If you leave it vacant, non-owner-occupier rates continue.
+    source_pages: [iras-renting-out-property]
+    evidence: "Owner-Occupier tax rates will **NOT** be automatically applied upon the end of a tenancy"
+
+  # ---------------- multi-hop ----------------
+  - id: q40-pr-4room-what-can-i-rent
+    category: multi_hop
+    audience: owner
+    question: I'm a Singapore PR with a 4-room flat and I've finished the MOP. What can I rent out?
+    expect: answer
+    expected: Not the whole flat (citizens only). You can rent out up to 2 bedrooms (PR owners are allowed), but you must keep living in the flat, with a cap of 8 occupants (6 beyond 31 Dec 2028).
+    source_pages: [hdb-owner-flat-eligibility, hdb-owner-landing, hdb-owner-bedroom-eligibility, hdb-owner-bedroom-regulations]
+    evidence: "Only Singapore Citizens are allowed to rent out the HDB flat."
+    notes: Needs facts from at least two pages.
+
+  - id: q41-pr-tenants-quota-period
+    category: multi_hop
+    audience: owner
+    question: I want to rent my whole flat to two PRs. What limits apply?
+    expect: answer
+    expected: The NC quota (8% neighbourhood / 11% block) applies and must not be reached; maximum rental period is 2 years per approval; minimum 6 months; tenants must be eligible (e.g. not owning another HDB flat).
+    source_pages: [hdb-owner-flat-eligibility, hdb-owner-flat-regulations, hdb-tenant-regulations]
+    evidence: "The maximum is capped at 2 years as long as one or more tenant is a non-Malaysian non-citizen."
+
+  # ---------------- routing to SQL (rent data) ----------------
+  - id: q42-median-rent
+    category: route_sql
+    question: What is the median rent for a 4-room flat in Tampines?
+    expect: route_sql
+    expected: Should be answered from the data.gov.sg median-rent dataset (SQL), with the quarter and a note that rents are owner-declared.
+    source_pages: []
+    notes: Not answerable from the RAG corpus. Tests the router.
+
+  - id: q43-approvals
+    category: route_sql
+    question: How many rental approvals were there for 3-room flats last quarter?
+    expect: route_sql
+    expected: Should be answered from the rental-approvals dataset (SQL).
+    source_pages: []
+
+  # ---------------- out of scope / no answer ----------------
+  - id: q44-condo
+    category: out_of_scope
+    question: Can I rent out my condo to tourists for 3 months?
+    expect: decline
+    expected: Out of scope. The sources cover HDB flats only. Should say so and not apply HDB rules to private property.
+    source_pages: []
+
+  - id: q45-evict
+    category: no_answer
+    audience: owner
+    question: Can I evict my tenant early if they are noisy?
+    expect: decline
+    expected: The sources do not set eviction rules. They say termination rights and disputes are private matters under the tenancy agreement, and point to mediation. Should not invent a legal process.
+    source_pages: [hdb-tenant-tenancy-matters]
+    notes: Partial coverage only. Tests that the model hedges instead of making up law.
+
+  - id: q46-best-area
+    category: out_of_scope
+    question: Which HDB town is the best to rent in?
+    expect: decline
+    expected: A subjective question the sources do not answer. Could offer to compare median rents by town from the dataset.
+    source_pages: []

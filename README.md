@@ -19,6 +19,8 @@ SQLite for price questions.
 | `search.py` | `retrieve(question, k, alpha, audience)` — hybrid keyword + meaning search |
 | `tracing.py` | LangSmith tracing in one file; does nothing unless switched on |
 | `test_chunker.py` | Chunker tests (`python test_chunker.py`) |
+| `evals/questions.yaml` | 46 eval questions with reference answers, source pages and quoted evidence |
+| `evals/run_retrieval.py` | Validates the question file; scores retrieval hit rate by category and alpha |
 
 ## Run
 
@@ -72,6 +74,20 @@ Then run `python search.py "can a PR rent out their flat"`.
 
 Each call appears as a trace: `retrieve` → `embed` + `weaviate_hybrid_search`, with the
 query, alpha, filter and the chunks returned with scores. Answer-generation spans come next.
+
+## Evals
+
+```bash
+python evals/run_retrieval.py --check                          # every quoted evidence line exists in the corpus
+python evals/run_retrieval.py --alpha 0 0.3 0.5 0.7 1 --k 3 5 --misses
+```
+
+`questions.yaml` holds 46 questions: 33 facts, tables and computations, 2 source conflicts
+(bedroom fee $9 vs $10; tenant cap date 2028 vs 2026), 2 multi-page questions, 2 that should
+route to SQL, and 3 that should be declined or hedged. Each answerable question lists the pages
+that contain the answer and a verbatim `evidence` quote. Reference answers are drafts; review
+them before trusting scores. `q30` is a known gap until `hdb-owner-flat-application` is re-saved.
+Answer-quality (LLM judge) and routing evals come after the answer step exists.
 
 ## Sites that block scripted access (hdb.gov.sg)
 
