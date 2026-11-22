@@ -145,14 +145,20 @@ def sync_dataset(client, name: str, all_questions: list[dict]):
     """Create the dataset if needed and upsert every question (ids are stable, so edits update in place)."""
     if not client.has_dataset(dataset_name=name):
         client.create_dataset(name, description="HDB rental RAG eval questions (evals/questions.yaml)")
-    parts = [example_parts(q) for q in all_questions]
-    kwargs = dict(dataset_name=name, ids=[p[0] for p in parts], inputs=[p[1] for p in parts],
-                  metadata=[p[3] for p in parts])
-    refs = [p[2] for p in parts]
-    try:
-        client.create_examples(reference_outputs=refs, **kwargs)
-    except (TypeError, ValueError):  # older langsmith versions call it `outputs`
-        client.create_examples(outputs=refs, **kwargs)
+    parts = [example_parts(q) for q in all_questions]  # (id, inputs, reference, metadata)
+    have = {str(e.id) for e in client.list_examples(dataset_name=name)}
+    new = [p for p in parts if str(p[0]) not in have]
+    old = [p for p in parts if str(p[0]) in have]
+    if new:
+        kwargs = dict(dataset_name=name, ids=[p[0] for p in new], inputs=[p[1] for p in new],
+                      metadata=[p[3] for p in new])
+        refs = [p[2] for p in new]
+        try:
+            client.create_examples(reference_outputs=refs, **kwargs)
+        except (TypeError, ValueError):  # older langsmith versions call it `outputs`
+            client.create_examples(outputs=refs, **kwargs)
+    for id_, inputs, ref, meta in old:  # edits to questions.yaml update in place
+        client.update_example(example_id=id_, inputs=inputs, outputs=ref, metadata=meta)
 
 
 # ------------------------------------------------------------------ reporting
