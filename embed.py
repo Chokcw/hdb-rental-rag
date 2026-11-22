@@ -61,7 +61,7 @@ def _fake(text: str) -> list[float]:
     return [x / norm for x in v]
 
 
-def _client(mode: str):
+def make_client(mode: str):
     from openai import OpenAI
 
     if mode == "openrouter":
@@ -81,7 +81,7 @@ def embed(texts: list[str], mode: str | None = None) -> list[list[float]]:
     mode = get_mode(mode)
     if mode == "fake":
         return [_fake(t) for t in texts]
-    client, model = _client(mode), model_name(mode)
+    client, model = make_client(mode), model_name(mode)
     out: list[list[float]] = []
     for i in range(0, len(texts), BATCH):
         resp = client.embeddings.create(model=model, input=texts[i : i + BATCH])

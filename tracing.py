@@ -40,3 +40,12 @@ def trace(name: str | None = None, run_type: str = "chain"):
         return _traceable(name=name or fn.__name__, run_type=run_type)(fn)
 
     return decorator
+
+
+def wrap_openai(client):
+    """Wrap an OpenAI-SDK client so chat calls show up as LLM runs with token counts."""
+    if not enabled():
+        return client
+    from langsmith.wrappers import wrap_openai as _wrap
+
+    return _wrap(client)

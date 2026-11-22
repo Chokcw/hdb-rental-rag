@@ -17,6 +17,8 @@ SQLite for price questions.
 | `store.py` | All Weaviate code (embedded or Docker). Swap this file to try another store |
 | `index.py` | Chunk, embed only new/changed chunks, load into Weaviate |
 | `search.py` | `retrieve(question, k, alpha, audience)` — hybrid keyword + meaning search |
+| `llm.py` | Chat model via OpenRouter/OpenAI (`CHAT_MODEL` in `.env`) |
+| `answer.py` | Question to cited answer: retrieve, build prompt, generate, check citations |
 | `tracing.py` | LangSmith tracing in one file; does nothing unless switched on |
 | `test_chunker.py` | Chunker tests (`python test_chunker.py`) |
 | `evals/questions.yaml` | 46 eval questions with reference answers, source pages and quoted evidence |
@@ -60,6 +62,20 @@ python search.py "how many tenants can live in a 4-room flat" --alpha 0.5
 - `python index.py` skips pages that are not canonical in `seeds.yaml` or have almost no text.
   Currently skipped: `hdb-owner-flat-application`, `hdb-tenant-eligibility`, `mnd-flat-classification`.
 
+### Answers
+
+```bash
+python answer.py "Can a PR rent out their whole HDB flat?"
+python answer.py "..." --dry-run     # see the exact prompt, no model call
+python answer.py "..." --json        # structured result (used by the evals)
+```
+
+The model answers only from the retrieved chunks, cites them as [1], [2], prefers the official
+owner of a topic (HDB for flat rules, IRAS for tax) when sources disagree, and starts with a
+`STATUS:` line (`answered`, `partial` or `not_covered`) so declines can be scored. Code, not the
+model, builds the Sources list and checks that every cited number exists. Set `CHAT_MODEL` in
+`.env` (default `openai/gpt-4o-mini`; any OpenRouter model id works).
+
 ### Tracing (LangSmith)
 
 Add these to `.env` (or export them):
@@ -72,8 +88,9 @@ LANGSMITH_PROJECT=hdb-rental-rag
 
 Then run `python search.py "can a PR rent out their flat"`.
 
-Each call appears as a trace: `retrieve` → `embed` + `weaviate_hybrid_search`, with the
-query, alpha, filter and the chunks returned with scores. Answer-generation spans come next.
+`python search.py` traces `retrieve` → `embed` + `weaviate_hybrid_search` (query, alpha, filter,
+chunks with scores). `python answer.py` traces `answer` → `retrieve`, `build_prompt` (the exact
+prompt), `generate` (model, tokens) and `check_citations`.
 
 ## Evals
 
