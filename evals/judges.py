@@ -64,7 +64,7 @@ SCORES = {"correct": 1.0, "grounded": 1.0, "good": 1.0, "partial": 0.5,
 
 def _ask(prompt: str) -> tuple[float | None, str]:
     text, _ = chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
-                   temperature=0.0, max_tokens=300, model=judge_model())
+                   temperature=0.0, max_tokens=2000, model=judge_model())  # headroom: reasoning models spend tokens thinking
     m = re.search(r"\{.*\}", text, re.S)
     try:
         obj = json.loads(m.group(0)) if m else {}
