@@ -47,7 +47,8 @@ def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 1600,
     model = model or chat_model()
     try:
         resp = client.chat.completions.create(
-            model=model, messages=messages, temperature=temperature, max_tokens=max_tokens)
+            model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
+            timeout=float(os.getenv("LLM_TIMEOUT", "90")))  # fail in 90s instead of hanging for minutes
     except Exception as e:  # surface model-id typos and key problems clearly
         raise ChatError(f"Chat call failed for model '{model}' via {provider()}: {e} "
                         f"(check CHAT_MODEL / JUDGE_MODEL and your API key in .env)") from e

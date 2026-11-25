@@ -207,6 +207,42 @@ def summarise(rows: list[dict]):
 
 # ------------------------------------------------------------------ main
 
+class Progress:
+    """Prints a line as each question is answered and scored, plus a heartbeat so a slow run never looks frozen."""
+
+    def __init__(self, total: int):
+        import threading
+        self.total, self.answered, self.scored, self.errors = total, 0, 0, 0
+        self.t0, self.lock, self.done = time.time(), threading.Lock(), threading.Event()
+        threading.Thread(target=self._beat, daemon=True).start()
+
+    def _say(self, msg: str):
+        print(f"[{time.time() - self.t0:5.0f}s] {msg}", flush=True)
+
+    def _beat(self):
+        while not self.done.wait(20):
+            with self.lock:
+                self._say(f"...still working: answered {self.answered}/{self.total}, scored {self.scored}/{self.total}")
+
+    def answered_one(self, question: str, secs: float, status: str):
+        with self.lock:
+            self.answered += 1
+            self._say(f"answered {self.answered}/{self.total} ({secs:.0f}s, {status})  {question[:60]}")
+
+    def failed_one(self, question: str, err: Exception):
+        with self.lock:
+            self.errors += 1
+            self._say(f"ERROR answering '{question[:50]}': {err}")
+
+    def scored_one(self):
+        with self.lock:
+            self.scored += 1
+            self._say(f"scored   {self.scored}/{self.total}")
+
+    def finish(self):
+        self.done.set()
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--k", type=int, default=None, help="chunks sent to the model (default: answer.py's)")
@@ -246,9 +282,24 @@ def main():
     if chat_model() == judge_model():
         print("note: judge model == chat model; set JUDGE_MODEL in .env to grade with a different model.")
 
+    progress = Progress(len(questions))
+
     def target(inputs: dict) -> dict:
         aud = None if args.no_audience else inputs.get("audience")
-        return answer(inputs["question"], k=k, alpha=alpha, audience=aud)
+        t = time.time()
+        try:
+            out = answer(inputs["question"], k=k, alpha=alpha, audience=aud)
+        except Exception as e:
+            progress.failed_one(inputs["question"], e)
+            raise
+        progress.answered_one(inputs["question"], time.time() - t, out.get("status", "?"))
+        return out
+
+    def scorer(inputs: dict, outputs: dict, reference_outputs: dict) -> dict:
+        try:
+            return score_answer(inputs, outputs, reference_outputs)
+        finally:
+            progress.scored_one()
 
     from langsmith import evaluate
     meta = {"alpha": alpha, "k": k, "chat_model": chat_model(), "judge_model": judge_model(),
@@ -261,6 +312,7 @@ def main():
         from langsmith import Client
         client = Client()
         all_q = yaml.safe_load(QUESTIONS.read_text(encoding="utf-8"))["questions"]
+        print("Syncing questions to LangSmith...", flush=True)
         sync_dataset(client, args.dataset, all_q)
         ids = [example_parts(q)[0] for q in questions]
         data = list(client.list_examples(dataset_name=args.dataset, example_ids=ids))
@@ -274,10 +326,11 @@ def main():
 
     warnings.filterwarnings("ignore", category=DeprecationWarning)  # langsmith re-enables these on import
     warnings.filterwarnings("ignore", message=".*beta.*")
-    kw = dict(data=data, evaluators=[score_answer], experiment_prefix=prefix, metadata=meta,
+    kw = dict(data=data, evaluators=[scorer], experiment_prefix=prefix, metadata=meta,
               max_concurrency=args.concurrency)
     if client:
         kw["client"] = client
+    print(f"Starting: {len(questions)} questions, concurrency {args.concurrency}. A progress line prints as each one finishes.", flush=True)
     try:
         results = evaluate(target, upload_runs=upload, **kw)
     except TypeError:  # older langsmith: parameter was called upload_results
@@ -303,6 +356,7 @@ def main():
         for r in rows:
             f.write(json.dumps({**r, "config": meta}, ensure_ascii=False) + "\n")
 
+    progress.finish()
     summarise([r for r in rows if r["scores"]])
     print(f"\nsaved {path.relative_to(ROOT)}")
     if upload:
