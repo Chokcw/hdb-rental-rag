@@ -40,7 +40,7 @@ def judge_model() -> str:
     return os.getenv("JUDGE_MODEL") or chat_model()
 
 
-def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 900,
+def chat(messages: list[dict], temperature: float = 0.0, max_tokens: int = 1600,
          model: str | None = None) -> tuple[str, dict]:
     """Returns (text, usage). Raises ChatError with a readable message if the call fails."""
     client = wrap_openai(make_client(provider()))
